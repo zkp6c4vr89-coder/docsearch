@@ -1,0 +1,23 @@
+# build outputs
+docsearch
+docsearch.exe
+docsearch_asan
+run_tests
+run_tests.exe
+run_tests_asan
+*.o
+*.obj
+*.dSYM/
+
+# files the program generates at run time
+output/
+
+# editor / OS clutter
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# large optional dataset (download with scripts/fetch_20news.py)
+data/20news_full/
