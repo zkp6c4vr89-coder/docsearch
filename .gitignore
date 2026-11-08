@@ -1,0 +1,12 @@
+# Built program (Mac/Linux and Windows)
+search
+search.exe
+*.o
+*.dSYM/
+
+# Generated per machine, since paths differ on each computer
+files.txt
+
+# OS junk
+.DS_Store
+Thumbs.db
