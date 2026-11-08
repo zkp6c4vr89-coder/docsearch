@@ -19,5 +19,6 @@ typedef struct {
 } Document;
 
 /*loader.c (Sreenandhu Siju Nair)*/
+char *read_whole_file(const char *path, long *out_size);
 
 #endif
