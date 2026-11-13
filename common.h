@@ -21,5 +21,5 @@ typedef struct {
 /*loader.c (Sreenandhu Siju Nair)*/
 char *read_whole_file(const char *path, long *out_size);
 Document *load_collection(const char *list_path, int *out_count);
-
+int next_token(const char **pos, char *word);
 #endif
