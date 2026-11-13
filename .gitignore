@@ -1,12 +1,20 @@
-# Built program (Mac/Linux and Windows)
+# Built program 
 search
 search.exe
 *.o
 *.dSYM/
 
-# Generated per machine, since paths differ on each computer
-files.txt
+# Generated per machine
+files*.txt
 
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Data
+data/20news/
+data/cranfield/
+
+#
+split_cranfield
+split_cranfield.exe
