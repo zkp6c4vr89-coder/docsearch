@@ -1,141 +1,271 @@
-// TEMPORARY test harness, not the final program.
-// It will be replaced by the menu. The list file names below are hard-coded
-// only for testing; in the real program the list file must come from the
-// user or the command line.
-
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "common.h"
 #include "indexer.h"
-#include "analyzer.h"
 
-#define CHECK_FILE "index_check.tmp"
+/* collections this small get one line per document in the statistics */
+#define SMALL_COLLECTION 10
 
-// the Index holds 10007 bucket pointers, too big to keep on the stack
-static Index idx;
-static Index loaded;
-
-static void test(const char *text)
-{
-    const char *p = text;
-    char word[MAX_WORD_LEN];
-
-    printf("\"%s\" ->", text);
-    while (next_token(&p, word)) {
-        printf(" [%s]", word);
+int get_safe_choice(int *choice) {
+    char buffer[256];
+    
+    if (fgets(buffer, sizeof(buffer), stdin) == NULL) {
+        return 0; 
     }
-    printf("\n");
+    
+    if (strchr(buffer, '\n') == NULL) {
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF);
+    }
+    
+    char *endptr;
+    long val = strtol(buffer, &endptr, 10);
+    
+    if (endptr == buffer) return -1;
+    
+    while (*endptr != '\0') {
+        if (*endptr != '\n' && *endptr != ' ' && *endptr != '\r' && *endptr != '\t') {
+            return -1;
+        }
+        endptr++;
+    }
+    
+    *choice = (int)val;
+    return 1;
 }
 
-// same text through the analyzer: next_token, then stopwords and stemming
-static void test_analyzer(const Analyzer *a, const char *text)
-{
-    Tokenizer t;
-    char term[MAX_WORD_LEN];
+/* Asks the user for a file name. Shared by options 1, 8 and 9.
+   Returns 1 if a name was entered, 0 if the line was empty or input ended. */
+int ask_file_name(const char *prompt, char *name, size_t size) {
+    printf("%s", prompt);
 
-    tokenizer_init(&t, text, strlen(text));
-    printf("\"%s\" ->", text);
-    while (analyzer_next(a, &t, term, NULL, NULL, NULL)) {
-        printf(" [%s]", term);
+    if (fgets(name, (int)size, stdin) == NULL) {
+        name[0] = '\0';
+        return 0;
     }
-    printf("\n");
+
+    if (strchr(name, '\n') == NULL) {
+        int c;
+        while ((c = getchar()) != '\n' && c != EOF);
+    }
+
+    name[strcspn(name, "\r\n")] = '\0';
+    return name[0] != '\0';
 }
 
-// loads one list of files, indexes it, then saves and reloads the index
-// returns 0 if everything worked
-static int run_collection(const char *list_path)
-{
-    int count = 0;
-    int ok = 1;
+int main(void) {
+    int choice = -1;
+    int collection_loaded = 0;
+    int index_ready = 0;
+    int has_results_or_stats = 0;
 
-    printf("\n== %s ==\n", list_path);
-    Document *docs = load_collection(list_path, &count);
-    if (docs == NULL) {
-        return 1;
-    }
+    Document *docs = NULL;
+    int doc_count = 0;
+    Index idx;
+    char file_name[MAX_PATH_LEN];
 
+    /* the index is always initialised, so index_free and index_load are safe at any time */
     index_init(&idx);
-    index_init(&loaded);
 
-    if (build_index(&idx, docs, count) < 0) {
-        ok = 0;
-    }
+    do {
+        printf("\n===== Document Search =====\n");
+        printf("1. Load Collection\n");
+        printf("2. Build Index\n");
+        printf("3. Show Statistics\n");
+        printf("4. Search\n");
+        printf("5. View Document\n");
+        printf("6. Set Number of Results\n");
+        printf("7. Save Report\n");
+        printf("8. Save Index\n");
+        printf("9. Load Index\n");
+        printf("0. Exit\n");
+        printf("Choice: ");
 
-// only print every document for small collections
-    if (count <= 10) {
-        for (int i = 0; i < count; i++) {
-            printf("  %s: %d total terms, %d unique\n",
-                   docs[i].path, docs[i].total_terms, docs[i].unique_terms);
+        int status = get_safe_choice(&choice);
+        if (status == 0) {
+            printf("End of input. Exiting.\n");
+            break;
         }
-    }
-    printf("Indexed %d documents: %ld total terms, %d unique terms, %d postings\n",
-           idx.num_docs, index_total_terms(&idx), idx.unique_terms, idx.posting_count);
+        if (status != 1) {
+            printf("Invalid input. Please enter a number.\n");
+            continue;
+        }
 
-    if (!index_check_frequency_sum(&idx)) {
-        printf("FAIL: frequencies do not add up to the total terms\n");
-        ok = 0;
-    }
+        switch (choice) {
+            case 1:
+                if (!ask_file_name("List file (one document path per line): ", file_name, sizeof(file_name))) {
+                    printf("No file name entered.\n");
+                    break;
+                }
 
-// save, load it back and compare
-    if (ok && (index_save(&idx, CHECK_FILE) != 0 || index_load(&loaded, CHECK_FILE) != 0)) {
-        printf("FAIL: index save/load\n");
-        ok = 0;
-    }
-    if (ok && (loaded.num_docs != idx.num_docs ||
-               loaded.unique_terms != idx.unique_terms ||
-               loaded.posting_count != idx.posting_count ||
-               index_total_terms(&loaded) != index_total_terms(&idx))) {
-        printf("FAIL: loaded index is different from the saved one\n");
-        ok = 0;
-    }
-    if (ok) {
-        printf("Index save -> load OK\n");
-    }
-    remove(CHECK_FILE);
+                /* load into temporary variables, so a failed load cannot damage what we have */
+                {
+                    int new_count = 0;
+                    Document *new_docs = load_collection(file_name, &new_count);
+                    if (new_docs == NULL || new_count == 0) {
+                        free(new_docs);
+                        printf("Could not load a collection from %s\n", file_name);
+                        if (collection_loaded) {
+                            printf("The previous collection and index were kept.\n");
+                        }
+                        break;
+                    }
 
-    index_free(&idx);
-    index_free(&loaded);
+                    /* the new collection is good: replace the old one and its index */
+                    free(docs);
+                    index_free(&idx);
+                    docs = new_docs;
+                    doc_count = new_count;
+                }
+                index_ready = 0;
+                has_results_or_stats = 0;
+                collection_loaded = 1;
+                printf("Collection loaded successfully.\n");
+                break;
+
+            case 2:
+                if (!collection_loaded) {
+                    printf("Please load a collection first (option 1).\n");
+                    break;
+                }
+                index_free(&idx);
+                index_init(&idx);
+                index_ready = 0;
+                {
+                    int indexed = build_index(&idx, docs, doc_count);
+                    if (indexed < 0) {
+                        index_free(&idx);
+                        printf("Error building index.\n");
+                        break;
+                    }
+                    index_ready = 1;
+                    printf("Index built successfully (%d documents indexed).\n", indexed);
+                }
+                break;
+
+            case 3:
+                if (!index_ready) {
+                    printf("Please build or load an index first.\n");
+                    break;
+                }
+                printf("--- Statistics ---\n");
+                printf("Documents:    %d\n", idx.num_docs);
+                printf("Total terms:  %ld\n", index_total_terms(&idx));
+                printf("Unique terms: %d\n", idx.unique_terms);
+                printf("Postings:     %d\n", idx.posting_count);
+
+                if (idx.num_docs <= SMALL_COLLECTION) {
+                    for (int i = 0; i < idx.num_docs; i++) {
+                        printf("  %s: %d total terms, %d unique\n", idx.docs[i].path,
+                               idx.docs[i].total_terms, idx.docs[i].unique_terms);
+                    }
+                }
+                {
+                    int empty_docs = 0;
+                    for (int i = 0; i < idx.num_docs; i++) {
+                        if (idx.docs[i].total_terms == 0) {
+                            if (empty_docs == 0) {
+                                printf("Documents with 0 terms:\n");
+                            }
+                            printf("  %s\n", idx.docs[i].path);
+                            empty_docs++;
+                        }
+                    }
+                    if (empty_docs == 0) {
+                        printf("Documents with 0 terms: none\n");
+                    } else {
+                        printf("(%d documents with 0 terms)\n", empty_docs);
+                    }
+                }
+                has_results_or_stats = 1;
+                break;
+
+            case 4:
+                if (!index_ready) {
+                    printf("Please build or load an index first.\n");
+                    break;
+                }
+                printf("Performing search...\n");
+                has_results_or_stats = 1;
+                break;
+
+            case 5:
+                if (!collection_loaded) {
+                    printf("Please load a collection first.\n");
+                    break;
+                }
+                printf("View document logic goes here...\n");
+                break;
+
+            case 7:
+                if (!has_results_or_stats) {
+                    printf("Nothing to save yet.\n");
+                    break;
+                }
+                {
+                    FILE *f = fopen("report.txt", "w");
+                    if (f != NULL) {
+                        fprintf(f, "Report data saved.\n");
+                        fclose(f);
+                        printf("Report saved to report.txt\n");
+                    } else {
+                        printf("Error saving report.\n");
+                    }
+                }
+                break;
+
+            case 6:
+                printf("Set number of results logic goes here...\n");
+                break;
+
+            case 8:
+                if (!index_ready) {
+                    printf("Please build or load an index first.\n");
+                    break;
+                }
+                if (!ask_file_name("Save index to file: ", file_name, sizeof(file_name))) {
+                    printf("No file name entered.\n");
+                    break;
+                }
+                if (index_save(&idx, file_name) != 0) {
+                    printf("Error saving index.\n");
+                    break;
+                }
+                printf("Index saved to %s\n", file_name);
+                break;
+
+            case 9:
+                if (!ask_file_name("Load index from file: ", file_name, sizeof(file_name))) {
+                    printf("No file name entered.\n");
+                    break;
+                }
+                /* on failure index_load leaves the current index as it was */
+                if (index_load(&idx, file_name) != 0) {
+                    printf("Error loading index.\n");
+                    break;
+                }
+                index_ready = 1;
+                printf("Index loaded successfully (%d documents).\n", idx.num_docs);
+                if (collection_loaded && idx.num_docs != doc_count) {
+                    printf("Warning: this index has %d documents but the loaded collection has %d.\n",
+                           idx.num_docs, doc_count);
+                    printf("It may belong to a different collection.\n");
+                }
+                break;
+
+            case 0:
+                printf("Exiting program...\n");
+                break;
+
+            default:
+                printf("Unknown option. Choose between 0 and 9.\n");
+        }
+    } while (choice != 0);
+
+    /* reached from option 0 and from end of input */
     free(docs);
-    return ok ? 0 : 1;
-}
+    index_free(&idx);
 
-int main(int argc, char *argv[])
-{
-    int failed = 0;
-
-// usage: ./search              tokenizer tests, then the default lists below
-//        ./search <list> ...   tokenizer tests, then each list of file paths given
-    printf("== tokenizer ==\n");
-    test("Hello, World!");
-    test("renewable-energy");
-    test("   ");
-    test("");
-    test("don't");
-    test("word");
-    test("Solar power, widely-used!");
-
-    printf("\n== analyzer (stopwords + stemming) ==\n");
-    Analyzer a;
-    analyzer_init(&a, 1, 1, "data/stopwords.txt");
-    test_analyzer(&a, "Solar power, widely-used!");
-    test_analyzer(&a, "The connections are connected");
-    analyzer_free(&a);
-
-    for (int i = 1; i < argc; i++) {
-        failed += run_collection(argv[i]);
-    }
-
-// no lists given: use the default ones that exist on this machine
-    if (argc == 1) {
-        const char *defaults[] = { "files_sample.txt", "files_cran.txt" };
-        for (int i = 0; i < 2; i++) {
-            FILE *fp = fopen(defaults[i], "r");
-            if (fp == NULL) {
-                printf("\n(no %s here, skipped)\n", defaults[i]);
-                continue;
-            }
-            fclose(fp);
-            failed += run_collection(defaults[i]);
-        }
-    }
-    return failed ? 1 : 0;
+    return 0;
 }

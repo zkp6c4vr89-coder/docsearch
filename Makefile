@@ -13,6 +13,11 @@ split_cranfield: tools/split_cranfield.c loader.c common.h
 	$(CC) $(CFLAGS) -o split_cranfield tools/split_cranfield.c loader.c
 
 # same program built with AddressSanitizer + UBSan, to catch memory bugs
+# the old test harness (tokenizer tests + index sample/Cranfield), builds ./search_test
+TEST_SRCS = $(filter-out main.c,$(SRCS)) tests/test_main.c
+test: $(TEST_SRCS) $(HDRS)
+	$(CC) $(CFLAGS) -o $(TARGET)_test $(TEST_SRCS)
+
 # builds ./search_asan, so ./search is always the normal build
 sanitize: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer
 sanitize: $(SRCS) $(HDRS)
@@ -20,9 +25,9 @@ sanitize: $(SRCS) $(HDRS)
 
 clean:
 ifeq ($(OS),Windows_NT)
-	del /Q $(TARGET).exe $(TARGET)_asan.exe split_cranfield.exe 2>nul
+	del /Q $(TARGET).exe $(TARGET)_asan.exe $(TARGET)_test.exe split_cranfield.exe 2>nul
 else
-	rm -f $(TARGET) $(TARGET)_asan split_cranfield
+	rm -f $(TARGET) $(TARGET)_asan $(TARGET)_test split_cranfield
 endif
 
-.PHONY: all clean sanitize 
+.PHONY: all clean sanitize test 
