@@ -1,7 +1,7 @@
-// TEMPORARY test harness, not the final program.
-// It will be replaced by the menu. The list file names below are hard-coded
-// only for testing; in the real program the list file must come from the
-// user or the command line.
+// Test harness for the tokenizer, analyzer, indexer and index save/load.
+// This is the permanent test program, separate from the menu in main.c.
+// Build it with `make test` and run it as ./search_test
+// The default list file names below are hard-coded on purpose, for testing only.
 
 #include <string.h>
 #include "common.h"
@@ -102,8 +102,8 @@ int main(int argc, char *argv[])
 {
     int failed = 0;
 
-// usage: ./search              tokenizer tests, then the default lists below
-//        ./search <list> ...   tokenizer tests, then each list of file paths given
+// usage: ./search_test              tokenizer tests, then the default lists below
+//        ./search_test <list> ...   tokenizer tests, then each list of file paths given
     printf("== tokenizer ==\n");
     test("Hello, World!");
     test("renewable-energy");
