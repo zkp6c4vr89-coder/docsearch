@@ -99,23 +99,27 @@ int main(void) {
                     break;
                 }
 
-                /* throw away the old collection and its index before loading a new one */
-                free(docs);
-                docs = NULL;
-                doc_count = 0;
-                index_free(&idx);
-                collection_loaded = 0;
+                /* load into temporary variables, so a failed load cannot damage what we have */
+                {
+                    int new_count = 0;
+                    Document *new_docs = load_collection(file_name, &new_count);
+                    if (new_docs == NULL || new_count == 0) {
+                        free(new_docs);
+                        printf("Could not load a collection from %s\n", file_name);
+                        if (collection_loaded) {
+                            printf("The previous collection and index were kept.\n");
+                        }
+                        break;
+                    }
+
+                    /* the new collection is good: replace the old one and its index */
+                    free(docs);
+                    index_free(&idx);
+                    docs = new_docs;
+                    doc_count = new_count;
+                }
                 index_ready = 0;
                 has_results_or_stats = 0;
-
-                docs = load_collection(file_name, &doc_count);
-                if (docs == NULL || doc_count == 0) {
-                    free(docs);
-                    docs = NULL;
-                    doc_count = 0;
-                    printf("Could not load a collection from %s\n", file_name);
-                    break;
-                }
                 collection_loaded = 1;
                 printf("Collection loaded successfully.\n");
                 break;
