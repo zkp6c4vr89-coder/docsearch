@@ -1,6 +1,8 @@
 # Built program 
 search
 search.exe
+search_asan
+search_asan.exe
 *.o
 *.dSYM/
 

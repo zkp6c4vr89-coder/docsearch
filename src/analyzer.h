@@ -4,19 +4,16 @@
  *          through exactly this code, which guarantees they are normalised
  *          with identical rules.
  *
- * Tokenization rules (deterministic, documented in docs/DESIGN.md):
- *   1. A token is a maximal run of "word bytes": ASCII letters/digits and
- *      non-ASCII bytes (so UTF-8 words such as "café" stay intact).
- *   2. Everything else (spaces, punctuation, hyphens, Unicode punctuation
- *      U+2000-U+206F, no-break space) separates tokens:
- *      "renewable-energy" -> "renewable", "energy".
- *   3. An apostrophe between two letters is removed ("don't" -> "dont"),
- *      and a possessive "'s" is dropped ("prandtl's" -> "prandtl").
- *   4. ASCII letters are lower-cased. Tokens are truncated to 63 bytes
- *      (never in the middle of a UTF-8 character).
+ * Tokenization is done by next_token() in tokenizer.c, the one tokenizer
+ * of the project:
+ *   1. A token is a maximal run of ASCII letters/digits.
+ *   2. Everything else (spaces, punctuation, hyphens, apostrophes,
+ *      non-ASCII bytes) separates tokens:
+ *      "renewable-energy" -> "renewable", "energy";  "don't" -> "don", "t".
+ *   3. Letters are lower-cased. Tokens are truncated to 63 characters.
  * Normalisation, applied after tokenization:
- *   5. Stopwords (sorted list, binary search) are dropped if enabled.
- *   6. Purely alphabetic tokens are reduced with the Porter stemmer if
+ *   4. Stopwords (sorted list, binary search) are dropped if enabled.
+ *   5. Purely alphabetic tokens are reduced with the Porter stemmer if
  *      enabled ("connections" -> "connect").
  * Token positions count every token, including dropped stopwords, so
  * phrase queries such as "state of the art" keep their real gaps.
@@ -30,14 +27,14 @@
 #include "common.h"
 
 typedef struct {
-    const char *text;
+    const char *text;     /* must be '\0' terminated                    */
     size_t      len;
     size_t      pos;      /* current byte offset                        */
     int         count;    /* tokens produced so far (= next position)   */
 } Tokenizer;
 
 void tokenizer_init(Tokenizer *t, const char *text, size_t len);
-/* Writes the next lower-cased token into out[MAX_TERM_LEN]. start/end
+/* Writes the next lower-cased token into out[MAX_WORD_LEN]. start/end
  * (may be NULL) receive its byte range in the text. Returns 0 at end.   */
 int  tokenizer_next(Tokenizer *t, char *out, size_t *start, size_t *end);
 
