@@ -247,6 +247,11 @@ int main(void) {
                 }
                 index_ready = 1;
                 printf("Index loaded successfully (%d documents).\n", idx.num_docs);
+                if (collection_loaded && idx.num_docs != doc_count) {
+                    printf("Warning: this index has %d documents but the loaded collection has %d.\n",
+                           idx.num_docs, doc_count);
+                    printf("It may belong to a different collection.\n");
+                }
                 break;
 
             case 0:
