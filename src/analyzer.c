@@ -6,7 +6,6 @@
  */
 #include "analyzer.h"
 #include "stemmer.h"
-#include "util.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -44,89 +43,30 @@ void tokenizer_init(Tokenizer *t, const char *text, size_t len)
     t->count = 0;
 }
 
-/* Returns the number of bytes at s[i] that form a separator (0 if the
- * byte starts a word character). Handles a few UTF-8 punctuation marks. */
-static size_t separator_len(const unsigned char *s, size_t i, size_t len)
-{
-    unsigned char c = s[i];
-    if (c < 0x80) return isalnum(c) ? 0 : 1;
-    /* U+00A0 no-break space */
-    if (c == 0xC2 && i + 1 < len && s[i + 1] == 0xA0) return 2;
-    /* U+2000..U+206F general punctuation (dashes, quotes, bullets...) */
-    if (c == 0xE2 && i + 2 < len && (s[i + 1] == 0x80 || s[i + 1] == 0x81)) return 3;
-    return 0;
-}
-
-/* Is there an apostrophe (ASCII ' or UTF-8 U+2019) at s[i]? -> its length */
-static size_t apostrophe_len(const unsigned char *s, size_t i, size_t len)
-{
-    if (s[i] == '\'') return 1;
-    if (s[i] == 0xE2 && i + 2 < len && s[i + 1] == 0x80 && (s[i + 2] == 0x99 || s[i + 2] == 0x98))
-        return 3;
-    return 0;
-}
-
-/* Length of the UTF-8 sequence that starts with lead byte c. */
-static int utf8_seq_len(unsigned char c)
-{
-    if (c >= 0xF0) return 4;
-    if (c >= 0xE0) return 3;
-    if (c >= 0xC0) return 2;
-    return 1;
-}
-
+/* Splitting text into words is done by next_token() (tokenizer.c), the one
+ * tokenizer of the project. This wrapper only remembers where it is in the
+ * text, counts the tokens and reports each token's byte range.
+ * The text must be '\0' terminated, because next_token() stops there.     */
 int tokenizer_next(Tokenizer *t, char *out, size_t *start, size_t *end)
 {
-    const unsigned char *s = (const unsigned char *)t->text;
-    size_t i = t->pos, n = 0;
-    int    copying = 1;
+    const char *p;
+    size_t      s, e;
 
-    /* 1. skip separators (but not apostrophes that start a word) */
-    while (i < t->len) {
-        size_t a = apostrophe_len(s, i, t->len);
-        size_t sl = a ? a : separator_len(s, i, t->len);
-        if (sl == 0) break;
-        i += sl;
-    }
-    if (i >= t->len) {
-        t->pos = i;
+    if (t->pos >= t->len) return 0;
+    p = t->text + t->pos;
+    if (!next_token(&p, out)) {
+        t->pos = (size_t)(p - t->text);
         return 0;
     }
-    if (start) *start = i;
+    /* next_token() leaves p just after the word; walk back to its first
+     * character (strlen(out) would be wrong for a truncated long word).  */
+    e = (size_t)(p - t->text);
+    s = e;
+    while (s > t->pos && isalnum((unsigned char)t->text[s - 1])) s--;
 
-    /* 2. consume word bytes */
-    while (i < t->len) {
-        size_t a = apostrophe_len(s, i, t->len);
-        if (a) {
-            size_t j = i + a;
-            /* apostrophe is kept inside a word only if a word byte follows */
-            if (n == 0 || j >= t->len || separator_len(s, j, t->len) != 0 ||
-                apostrophe_len(s, j, t->len))
-                break;
-            /* possessive 's at the end of a word: drop it entirely */
-            if ((s[j] == 's' || s[j] == 'S') &&
-                (j + 1 >= t->len || separator_len(s, j + 1, t->len) != 0)) {
-                i = j + 1;
-                break;
-            }
-            i = j;          /* "don't" -> "dont" */
-            continue;
-        }
-        if (separator_len(s, i, t->len) != 0) break;
-        if (copying) {
-            unsigned char c = s[i];
-            if (c >= 0xC0 && n + (size_t)utf8_seq_len(c) > MAX_TERM_LEN - 1)
-                copying = 0;                      /* would split a character */
-            else if (n >= MAX_TERM_LEN - 1)
-                copying = 0;                      /* truncate long tokens    */
-            else
-                out[n++] = (char)(c < 0x80 ? tolower(c) : c);
-        }
-        i++;
-    }
-    out[n] = '\0';
-    if (end) *end = i;
-    t->pos = i;
+    if (start) *start = s;
+    if (end) *end = e;
+    t->pos = e;
     t->count++;
     return 1;
 }
