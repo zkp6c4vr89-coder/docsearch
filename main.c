@@ -30,8 +30,8 @@ int get_safe_choice(int *choice) {
     return 1;
 }
 
-int main() {
-    int choice;
+int main(void) {
+    int choice = -1;
     int collection_loaded = 0;
     int index_ready = 0;
     int has_results_or_stats = 0;
@@ -50,7 +50,12 @@ int main() {
         printf("0. Exit\n");
         printf("Choice: ");
 
-        if (get_safe_choice(&choice) != 1) {
+        int status = get_safe_choice(&choice);
+        if (status == 0) {
+            printf("End of input. Exiting.\n");
+            break;
+        }
+        if (status != 1) {
             printf("Invalid input. Please enter a number.\n");
             continue;
         }
@@ -112,6 +117,23 @@ int main() {
                         printf("Error saving report.\n");
                     }
                 }
+                break;
+
+            case 6:
+                printf("Set number of results logic goes here...\n");
+                break;
+
+            case 8:
+                if (!index_ready) {
+                    printf("Please build or load an index first.\n");
+                    break;
+                }
+                printf("Save index logic goes here...\n");
+                break;
+
+            case 9:
+                index_ready = 1;
+                printf("Index loaded successfully.\n");
                 break;
 
             case 0:
