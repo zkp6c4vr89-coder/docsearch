@@ -3,6 +3,8 @@ search
 search.exe
 search_asan
 search_asan.exe
+search_test
+search_test.exe
 *.o
 *.dSYM/
 
