@@ -109,3 +109,8 @@ int   read_line(FILE *fp, char *buf, size_t size);    /* one line without the li
 
 #endif
 
+// Most distinct words we keep from one query
+#define MAX_QUERY_WORDS 32
+
+// linear.c 
+int linear_scan(const Document *docs, int count, const char *query, int *scores);

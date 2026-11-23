@@ -1,4 +1,4 @@
-// Test harness for the tokenizer, analyzer, indexer and index save/load.
+// Test harness for the tokenizer, analyzer, linear scan, indexer and index save/load.
 // This is the permanent test program, separate from the menu in main.c.
 // Build it with `make test` and run it as ./search_test
 // The default list file names below are hard-coded on purpose, for testing only.
@@ -40,7 +40,70 @@ static void test_analyzer(const Analyzer *a, const char *text)
     printf("\n");
 }
 
-// loads one list of files, indexes it, then saves and reloads the index
+// runs the linear scan for one query and prints the scores
+// only prints every document for small collections
+static void test_linear(const Document *docs, int count, const char *query)
+{
+    int *scores = malloc((size_t)count * sizeof(int));
+    if (scores == NULL) {
+        printf("FAIL: out of memory for linear scan scores\n");
+        return;
+    }
+
+    int n = linear_scan(docs, count, query, scores);
+
+    long total = 0;
+    int matching = 0;
+    for (int i = 0; i < count; i++) {
+        total += scores[i];
+        if (scores[i] > 0) {
+            matching++;
+        }
+    }
+
+    printf("Linear scan \"%s\" (%d query word(s)): %d docs match, %ld total hits\n",
+           query, n, matching, total);
+
+    if (count <= 10) {
+        for (int i = 0; i < count; i++) {
+            printf("  %s -> %d\n", docs[i].path, scores[i]);
+        }
+    }
+
+    free(scores);
+}
+
+// checks that two queries give exactly the same scores for every document
+// returns 1 if they match
+static int linear_same(const Document *docs, int count, const char *q1, const char *q2)
+{
+    int *a = malloc((size_t)count * sizeof(int));
+    int *b = malloc((size_t)count * sizeof(int));
+    int same = 1;
+
+    if (a == NULL || b == NULL) {
+        free(a);
+        free(b);
+        return 0;
+    }
+
+    linear_scan(docs, count, q1, a);
+    linear_scan(docs, count, q2, b);
+
+    for (int i = 0; i < count; i++) {
+        if (a[i] != b[i]) {
+            same = 0;
+            break;
+        }
+    }
+
+    free(a);
+    free(b);
+    return same;
+}
+
+// loads one list of files, indexes it, runs the linear scan tests,
+// then saves and reloads the index
 // returns 0 if everything worked
 static int run_collection(const char *list_path)
 {
@@ -69,6 +132,25 @@ static int run_collection(const char *list_path)
     }
     printf("Indexed %d documents: %ld total terms, %d unique terms, %d postings\n",
            idx.num_docs, index_total_terms(&idx), idx.unique_terms, idx.posting_count);
+
+// linear scan: the slow baseline with no index
+    test_linear(docs, count, "the");
+    test_linear(docs, count, "boundary layer");
+
+    if (!linear_same(docs, count, "the", "the the")) {
+        printf("FAIL: repeated query word changed the scores\n");
+        ok = 0;
+    }
+    if (!linear_same(docs, count, "the", "THE")) {
+        printf("FAIL: uppercase query gave different scores\n");
+        ok = 0;
+    }
+
+    int empty_scores[1];
+    if (count > 0 && linear_scan(docs, 1, "!!!", empty_scores) != 0) {
+        printf("FAIL: query with no words should have 0 query words\n");
+        ok = 0;
+    }
 
     if (!index_check_frequency_sum(&idx)) {
         printf("FAIL: frequencies do not add up to the total terms\n");
