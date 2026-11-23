@@ -107,10 +107,27 @@ const char *path_basename(const char *path);   /* part after the last '/' or '\'
 char *read_file(const char *path, size_t *out_len);   /* whole file, caller must free, NULL on failure */
 int   read_line(FILE *fp, char *buf, size_t size);    /* one line without the line ending, 0 at end of file */
 
-#endif
+
 
 // Most distinct words we keep from one query
 #define MAX_QUERY_WORDS 32
-
 // linear.c 
-int linear_scan(const Document *docs, int count, const char *query, int *scores);
+int linear_scan(const Document *docs, int count, const char *query, int *scores); 
+
+// metrics header (Zoyal Ahmed Khan)
+#define MIN_RELEVANCE 1
+
+typedef struct {int query; int doc; int rel;} Qrel;
+typedef struct {Qrel *items; int count;} QrelList;
+
+int qrels_load(QrelList *q, const char *filename);
+int qrels_relevant_docs(const QrelList *q, int query, int *out, int max);
+void qrels_free(QrelList *q);
+
+//results[] = cranfield doc numbers of the top results 
+//relevant[] = cranfield doc numbers of all docs relevant for the search
+double precision_at_k(const int *results, int n_results, int k, const int *relevant, int n_relevant);
+double recall_at_k(const int *results, int n_results, int k, const int *relevant, int n_relevant); //guard against n_relevant = 0 which would divide by 0
+double reciprocal_rank(const int *results, int n_results, const int *relevant, int n_relevant);
+
+#endif
