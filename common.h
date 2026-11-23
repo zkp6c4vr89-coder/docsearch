@@ -108,6 +108,12 @@ char *read_file(const char *path, size_t *out_len);   /* whole file, caller must
 int   read_line(FILE *fp, char *buf, size_t size);    /* one line without the line ending, 0 at end of file */
 
 
+
+// Most distinct words we keep from one query
+#define MAX_QUERY_WORDS 32
+// linear.c 
+int linear_scan(const Document *docs, int count, const char *query, int *scores); 
+
 // metrics header (Zoyal Ahmed Khan)
 #define MIN_RELEVANCE 1
 
