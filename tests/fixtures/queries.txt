@@ -1,0 +1,2 @@
+q1 supersonic wing
+q2 boundary layer

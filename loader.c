@@ -111,6 +111,9 @@ Document *load_collection(const char *list_path, int *out_count)
         strcpy(docs[count].path, line);
         docs[count].total_terms = 0;
         docs[count].unique_terms = 0;
+        docs[count].title = NULL;
+        docs[count].text = NULL;
+        docs[count].text_len = 0;
         count++;
     }
 

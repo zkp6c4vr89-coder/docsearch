@@ -58,6 +58,9 @@ int index_add_document(Index *idx, const char *path)
     (*d).id = (*idx).num_docs;
     (*d).total_terms = 0;
     (*d).unique_terms = 0;
+    (*d).title = NULL;
+    (*d).text = NULL;
+    (*d).text_len = 0;
     if (strlen(path) >= MAX_PATH_LEN){
         return -1;
     }

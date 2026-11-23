@@ -1,0 +1,4 @@
+q1 0 A1 1
+q2 0 A2 1
+q2 0 A1 0
+q2 0 MISSING 1

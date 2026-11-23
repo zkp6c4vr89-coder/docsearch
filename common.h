@@ -16,6 +16,9 @@ typedef struct {
     char path[MAX_PATH_LEN];
     int  total_terms;    /* every token counted */
     int  unique_terms;   /* distinct words*/
+    char  *title;        /* short title, NULL if not set (src/document.c) */
+    char  *text;         /* cached text, NULL if not loaded (src/document.c) */
+    size_t text_len;     /* length of text in bytes */
 } Document;
 
 /*loader.c (Sreenandhu Siju Nair)*/
@@ -66,6 +69,44 @@ void index_free(Index *idx);
 int index_check_frequency_sum(const Index *idx);
 int index_save(const Index *idx, const char *filename);
 int index_load(Index *idx, const char *filename);
+
+/* util.c - small helpers shared by every module */
+
+/* memory: these never return NULL, they print an error and exit instead */
+void *xmalloc(size_t size);
+void *xrealloc(void *ptr, size_t size);
+char *xstrdup(const char *s);
+char *xstrndup(const char *s, size_t n);   /* copies n bytes and adds '\0' */
+void  xfree(void *ptr);
+
+/* growable string buffer, data is always '\0' terminated once something is added */
+typedef struct {
+    char  *data;   /* NULL while the buffer is empty */
+    size_t len;    /* bytes used, not counting the '\0' */
+    size_t cap;    /* bytes allocated */
+} StrBuf;
+
+void  sb_init(StrBuf *sb);
+void  sb_append_char(StrBuf *sb, char c);
+void  sb_append(StrBuf *sb, const char *s);
+void  sb_append_n(StrBuf *sb, const char *s, size_t n);
+char *sb_take(StrBuf *sb);   /* hands the string to the caller (must free), buffer becomes empty */
+void  sb_free(StrBuf *sb);
+
+/* strings */
+void str_copy(char *out, size_t size, const char *src);   /* always terminates, cuts off if too long */
+void str_trim(char *s);                                    /* removes spaces at both ends, in place */
+void str_tolower(char *s);                                 /* ASCII letters only, in place */
+int  str_ends_with_ci(const char *s, const char *suffix);  /* ignores case, 1 = yes */
+
+/* paths */
+void        path_join(char *out, size_t size, const char *dir, const char *name);
+const char *path_basename(const char *path);   /* part after the last '/' or '\' */
+
+/* files */
+char *read_file(const char *path, size_t *out_len);   /* whole file, caller must free, NULL on failure */
+int   read_line(FILE *fp, char *buf, size_t size);    /* one line without the line ending, 0 at end of file */
+
 
 // metrics header (Zoyal Ahmed Khan)
 #define MIN_RELEVANCE 1
